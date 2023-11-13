@@ -1,0 +1,103 @@
+Q1. Kubeadm은 Kubernetes Cluster 생성을 위한 Kubead init과 Kubeadm join을 위한 툴이다.
+-> O, Kubeadm은 Kubernetes의 공식 설치 도구이다.
+확장성이 뛰어나며 지속적으로 개발되고 있다. 
+  kubeadm init: Control-plane 노드의 부트스크랩, 
+  kubeadm join: Worker 노드를 부트스트랩하고 Cluster에 조인
+  kubeadm upgrade: Kubernetes Cluster를 신규 버전으로 업그레이드 등의 옵션 및 기능
+Q2. 파드는 쿠버네티스 애플리케이션의 기본 실행 단위이다.
+-> O, 쿠버네티스 객체 모델 중 만들고 배포할 수 있는 가장 작고 간단한 단위이다.
+파드는 클러스터(Cluster)에서의 Running 프로세스를 나타낸다. 파드는 애플리케이션 컨테이너(또는, 몇몇의 경우, 다중 컨테이너),
+저장소 리소스, 특정 네트워크 IP 그리고 container가 동작하기 위해 만들어진 옵션들을 캡슐화한다.
+파드는 배포의 단위를 말한다.
+
+쿠버네티스 클러스터 구축
+- 클러스터 구축I
+  - Centos 7 기반 3개의 가상 머신: 각 서버의 /etc/hosts 파일
+  - 172.16.1.00 k8s-master
+  - k8s-node1
+  - k8s-node2
+- 도커 설치
+  - #yum install -y yum-utils device-mapper-persistent-data lvm2
+  - #yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  - #yum install docker-ce
+  - #systemctl start docker && systemctl enable docker
+- kubeadm 설치 준비
+  - SELInux 설정을 permissive 모드로 변경
+  - #setenforce 0
+  - #sed -i 's/^SELINUX=enforcing$/SENINUX=permissive/' /etc/selinux/config
+  - iptable 설정
+  - # cat <<EOF > /etc/sysctl.d/k8s.conf
+  - net.bridge.bridge-nf-call-ip6tables = 1 // 방화벽 설정
+  - net.bridge.bridge-nf-call-iptable = 1 // 방화벽 설정
+  - EOF
+  - #sysctl -system
+  - #systemctl stop firewalld
+  - #systemctl disable firewalld
+  - #swapoff -a 
+- 클러스터 구축 III
+  - 쿠버네티스 설치 준비
+    - 쿠버네티스 YUM 리포지토리 설정
+    - #cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+    - [kubernetes]
+    - name=Kubernetes
+    ...
+    - gpgcheck = 1 // 1로 하시면 true의 의미이다. 정상 패킷인지 확인. 비정상 패킷이면 설치가 안될 수 있음 
+- 쿠버네티스 설치 준비2
+  - kubeadm 설치
+    - #yum install -y kubelet kubeadm kubectl -- disableexcludes=Kubernetes
+    - #systemctl enable kubelet && systemctl start Kubelet
+- 마스터 컴포넌트 설치
+  - Kubeadm init 명령으로 마스터 노드 초기화
+  - # Kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=172.16.1.100
+  - 환경 변수 설정
+  - #export KUBECONFIG=/etc/kubernetes/admin.conf // 시스템이 글로벌하게 적용할 수 있게 config가 어디에 있는지 알려줌
+- 마스터 컴포넌트 설치2
+  - CNI 설치
+  - # kubectl apply -f https://raw.~~~~~~~/kube-flannel.yml
+  - 마스터 실행 확인
+  - #kubectl get pods --all-namespaces
+- 노트 컴포넌트 설치
+  - k8s-node1 서버에서 명령어 실행
+  - #kubeadm join 172.16.1.100:6443 --token .... 
+
+쿠버네티스 클러스터 구축
+- 클러스터 구축
+  - 클러스터 테스트
+    - 도커 이미지(luksa/kubia)
+    - # kubectl run kubia --image=luksa/kubia --port 8080 --generator=run-pod/v1
+    - 파드가 포함한 컨테이너에 연결할 수 있도록 서비스를 생성
+    - #kubectl expose rc kubia --type=LoadBalancer --name kubia-http
+    - #kubectl get services
+    - #curl 10.101.195.144:8080
+
+Prometheus를 이용한 모니터링 구축
+- 프로메테우스의 전체적인 아키텍처
+출처: https://prometheus.io/docs/introduction/overview
+
+- 프로메테우스 구축I
+  - 프로메테우스를 실행하기 위해서는 먼저 쿠버네티스용 설정 파일 필요
+  - Configmap 생성
+  - kubectl create configmap prometheus-kubernetes--from-file=./prometheus-kubernetes-config.yaml
+- 프로메테우스 구축II
+  - 프로메테우스용 디플로이먼트와 서비스 생성
+  apiVersion: apps/v1
+  kind: Deployment
+
+- configMap // key-value 형식으로 환경설정 정보를 저장 
+
+쿠버네티스 사용 시 중요한 것 
+- OS에 대한 기본적인 지식
+- 쿠버네티스에 대한 명확한 개념들
+- 각각의 구성요소에 대한 이해들
+- 클러스터를 구축할때의 마스터의 구성요소 노드의 구성요소, 노드의 통신에 필요한 가상 네트워크(오버레이), kubectl command 지식 필요
+
+그라파나란?
+- 그라파나라는 오픈소스 기반의 솔루션이고, 기능적 측면에서 우수하다.
+백엔드-프론트엔드-인터페이스로 구성되며, 백엔드는 서버에서 데이터 연동과 연산을 담당하고,
+프론트엔드는 클라이언트에서 서버와의 통신과 실제 데이터 연산과 처리를 중심으로 구성되어 있으며
+인터페이스는 사용자 액션에 대한 기능으로 구현되어 있다.
+서버프로그램 구성은 go와 python 그리고 로컬 database로 SQLite로 구성되어 있으며 설정에 따라 mysql을 사용할 수 있다.
+
+Summary
+- 쿠버네티스 클러스터 구축은 컨테이너 가상화인 도커를 기반으로 쿠버네티스 패키지 설치를 통해 구축된다.
+- 프로메테우스를 이용한 모니터링 구축은 쿠버네티스 기반으로 ConfigMap 생성, 배포 및 서비스 생성, 가시화 도구 설치 등으로 구축된다.
